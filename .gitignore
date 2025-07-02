@@ -1,0 +1,7 @@
+venv
+*.img
+*.xz
+temp_mount
+azurelinux_extracted
+*.swp
+*.rpm
