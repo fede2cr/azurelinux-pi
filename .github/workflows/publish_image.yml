@@ -30,7 +30,7 @@ jobs:
       - name: Run make_image.py
         run: |
           source venv/bin/activate
-          sudo python3 tools/make_image.py
+          python3 tools/make_image.py
 
       - name: Upload azl-pi.img.xz to release
         if: github.event_name == 'release' || startsWith(github.ref, 'refs/tags/')
