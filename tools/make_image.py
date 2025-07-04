@@ -45,7 +45,7 @@ def combine_images(raspbian, azurelinux):
     # Create a minimal fstab for root as rw
     fstab_path = os.path.join(azurelinux, 'etc', 'fstab')
     with open(fstab_path, 'w') as fstab:
-        fstab.write("/dev/mmcblk0p1 / ext4 defaults,rw 0 1\n/dev/mmcblk0p2 /boot vfat defaults,rw 0 1\n")
+        fstab.write("proc /proc proc defaults 0 0\n/dev/mmcblk0p2 / ext4 defaults,rw 0 1\n/dev/mmcblk0p1 /boot/firmware vfat defaults,rw,nofail 0 1\n")
     # Create a minimal hostname file
     hostname_path = os.path.join(azurelinux, 'etc', 'hostname')
     with open(hostname_path, 'w') as hostname_file:
@@ -58,7 +58,7 @@ def combine_images(raspbian, azurelinux):
                         'systemd', 'shadow-utils', 'openssh', 'iproute',
                         'sudo', 'procps-ng', 'less', 'vim', 'vim-extra',
                         'man-pages', 'man-db', 'which', 'wpa_supplicant',
-                        'file'], check=True)
+                        'file', 'bash-completion'], check=True)
         
         password_salt = random.getrandbits(64).to_bytes(8, 'big').hex()
         password_hash = sha512_crypt.using(salt=password_salt, rounds=5000).hash('azl')
@@ -88,11 +88,41 @@ def combine_images(raspbian, azurelinux):
         subprocess.run(['sudo', 'mount', f'{loop_device}p1', boot_mount], check=True)
         subprocess.run(['sudo', 'mount', f'{loop_device}p2', root_mount], check=True)
 
-        modules_backup = os.path.join(root_mount, 'modules_backup')
-        modules_dir = os.path.join(root_mount, 'lib', 'modules')
-        if os.path.exists(modules_dir):
-            subprocess.run(['sudo', 'mkdir', '-p', modules_backup], check=True)
-            subprocess.run(['sudo', 'mv', modules_dir, modules_backup], check=True)
+        #modules_backup = os.path.join(root_mount, 'modules_backup')
+        #modules_dir = os.path.join(root_mount, 'lib', 'modules')
+        #if os.path.exists(modules_dir):
+        #    subprocess.run(['sudo', 'mkdir', '-p', modules_backup], check=True)
+        #    subprocess.run(['sudo', 'mv', modules_dir, modules_backup], check=True)
+
+        # Backup important Raspbian directories before cleaning
+        backup_tar = os.path.join(root_mount, "raspbian_preserve.tar")
+        backup_tar_tmp = "/tmp/raspbian_preserve.tar"
+        dirs_to_backup = []
+        if os.path.exists(os.path.join(root_mount, "usr/lib/modules")):
+            print("Backing up /usr/lib/modules...")
+            dirs_to_backup.append("usr/lib/modules")
+        else:
+            print("No /usr/lib/modules found, skipping backup.")
+        if os.path.exists(os.path.join(root_mount, "usr/src")):
+            print("Backing up /usr/src...")
+            dirs_to_backup.append("usr/src")
+        else:
+            print("No /usr/src found, skipping backup.")
+
+        if os.path.exists(os.path.join(root_mount, "usr/lib/firmware")):
+            dirs_to_backup.append("usr/lib/firmware")
+        usr_lib = os.path.join(root_mount, "usr/lib")
+        for entry in os.listdir(usr_lib):
+            if entry.startswith("rasp"):
+                dirs_to_backup.append(f"usr/lib/{entry}")
+        if dirs_to_backup:
+            subprocess.run(
+                ["sudo", "tar", "cf", backup_tar] + dirs_to_backup,
+                cwd=root_mount,
+                check=True
+            )
+            # Move the tar to /tmp/ so it survives the cleanup
+            subprocess.run(['sudo', 'mv', backup_tar, backup_tar_tmp], check=True)
 
         # Clean root partition except for /boot, then copy Azurelinux files
         for entry in os.listdir(root_mount):
@@ -112,15 +142,22 @@ def combine_images(raspbian, azurelinux):
                 subprocess.run(['sudo', 'cp', '-a', src, dst], check=True)
             else:
                 subprocess.run(['sudo', 'cp', src, dst], check=True)
-        # Restore the modules directory if it was backed up
-        if os.path.exists(modules_backup):
-            subprocess.run(['sudo', 'mv', os.path.join(modules_backup, 'modules'), os.path.join(root_mount, 'lib')], check=True)
-            subprocess.run(['sudo', 'rmdir', modules_backup], check=True)
 
-        # Ensure 'rw' is present at the end of /boot/cmdline.txt
-        cmdline_path = os.path.join(azurelinux, 'boot', 'cmdline.txt')
-        if os.path.exists(cmdline_path):
-            subprocess.run(['sudo', 'sed', '-i', r's/$/ rw/', cmdline_path], check=True)
+        # Restore the preserved directories from the tar archive
+        if os.path.exists(backup_tar_tmp):
+            print(f"Restoring preserved directories from {backup_tar_tmp}...")
+            subprocess.run(
+                ["sudo", "tar", "xf", backup_tar_tmp, "-C", root_mount],
+                check=True
+            )
+            subprocess.run(['sudo', 'rm', '-f', backup_tar_tmp], check=True)
+        else:
+            print(f"No preserved directories found in {backup_tar_tmp}, skipping restoration.")
+
+        ## Ensure 'rw' is present at the end of /boot/cmdline.txt
+        #cmdline_path = os.path.join(azurelinux, 'boot', 'firmware', 'cmdline.txt')
+        #if os.path.exists(cmdline_path):
+        #    subprocess.run(['sudo', 'sed', '-i', r's/$/ rw/', cmdline_path], check=True)
 
         print("Combined image created successfully.")
 
@@ -157,8 +194,8 @@ def cleanup():
     # Compress the final AzureLinux image
     if os.path.exists(azurelinux_image):
         nproc = int(subprocess.check_output(['nproc'], text=True).strip())
-        subprocess.run(['xz', f'-vT{nproc}', azurelinux_image], check=True)
-        print(f"Compressed {azurelinux_image} to {azurelinux_image}.xz")
+        subprocess.run(['zstd', f'-v9T', azurelinux_image], check=True)
+        print(f"Compressed {azurelinux_image} to {azurelinux_image}.zst")
     else:
         print(f"{azurelinux_image} does not exist, skipping compression.")
 
