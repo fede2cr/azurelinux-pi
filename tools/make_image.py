@@ -237,7 +237,7 @@ def main():
     if not os.path.exists(raspbian_sd_image_path.replace('.xz', '')):
         # Use xz to decompress the image
         print("Decompressing Raspberry Pi SD image...")    
-        subprocess.run(['xz', '-dk', raspbian_sd_image_path], check=True)
+        subprocess.run(['xz', '-T ${nproc} -dk', raspbian_sd_image_path], check=True)
 
     # Mount the extracted Raspberry Pi SD image
     raspbian_sd_image_extracted_path = raspbian_sd_image_path.replace('.xz', '')
