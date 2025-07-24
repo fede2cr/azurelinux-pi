@@ -58,7 +58,7 @@ def combine_images(raspbian, azurelinux):
                         'systemd', 'shadow-utils', 'openssh', 'iproute',
                         'sudo', 'procps-ng', 'less', 'vim', 'vim-extra',
                         'man-pages', 'man-db', 'which', 'wpa_supplicant',
-                        'file', 'bash-completion'], check=True)
+                        'file', 'bash-completion', 'chrony', 'dhcpcd'], check=True)
         
         password_salt = random.getrandbits(64).to_bytes(8, 'big').hex()
         password_hash = sha512_crypt.using(salt=password_salt, rounds=5000).hash('azl')
