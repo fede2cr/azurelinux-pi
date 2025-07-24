@@ -193,7 +193,6 @@ def cleanup():
         print(f"Removed {raspbian_sd_image_extracted_img}")
     # Compress the final AzureLinux image
     if os.path.exists(azurelinux_image):
-        nproc = int(subprocess.check_output(['nproc'], text=True).strip())
         subprocess.run(['zstd', f'-v9T', azurelinux_image], check=True)
         print(f"Compressed {azurelinux_image} to {azurelinux_image}.zst")
     else:
@@ -237,7 +236,8 @@ def main():
     if not os.path.exists(raspbian_sd_image_path.replace('.xz', '')):
         # Use xz to decompress the image
         print("Decompressing Raspberry Pi SD image...")    
-        subprocess.run(['xz', '-dk', '-T$(nproc)', raspbian_sd_image_path], check=True)
+        nproc = int(subprocess.check_output(['nproc'], text=True).strip())
+        subprocess.run(['xz', '-dk', '-T', nproc, raspbian_sd_image_path], check=True)
 
     # Mount the extracted Raspberry Pi SD image
     raspbian_sd_image_extracted_path = raspbian_sd_image_path.replace('.xz', '')
