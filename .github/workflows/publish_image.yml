@@ -39,6 +39,6 @@ jobs:
         if: github.event_name == 'release' || startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: azl-pi-${{ env.RELEASE-TAG }}.img.zst
+          files: azl-pi-${{ env.RELEASE_TAG }}.img.zst
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
